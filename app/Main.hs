@@ -38,15 +38,28 @@ unwrap m err = do
 
 greyness :: Word64 -> B.ByteString
 greyness t =
-  let v = floor $ 255.0 * (fromIntegral t) / 10000000000.0
+  let v = floor $ 255.0 * fromIntegral t / 100.0
   in B.replicate (4*240*360) v
 
+whiteness :: B.ByteString
+whiteness = B.replicate (4*240*360) 255
+blackness :: B.ByteString
+blackness = B.replicate (4*240*360) 0
+
 supplyBuffers :: Gst.Pipeline -> Gst.Element -> Word64 -> IO ()
-supplyBuffers pipeline appsrc t = do
-  buff <- bufferNewWrapped $ greyness t
+supplyBuffers pipeline appsrc n = do
+  buff <- bufferNewWrapped $ greyness n
+  -- buff <- bufferNewWrapped $ [whiteness, blackness] !! fromIntegral (n `mod` 2)
 
   -- (hasPos, pos) <- elementQueryPosition pipeline FormatTime
   -- let t = if hasPos then pos else 0
+  --
+  let step_us = 33000
+      step_ns = step_us * 1000
+      t = n * step_ns
+
+  print t
+  print n
 
   setBufferPts buff (fromIntegral t)
 
@@ -55,8 +68,8 @@ supplyBuffers pipeline appsrc t = do
   gAppsrc <- toGValue $ Just appsrc
   gBuff <- toGValue $ Just buff
   _ <- signalEmitv [gAppsrc, gBuff] sig 0
-  threadDelay 100000
-  supplyBuffers pipeline appsrc (t + 100000000)
+  threadDelay $ fromIntegral step_us
+  supplyBuffers pipeline appsrc (n + 1)
 
 main :: IO ()
 main = do
