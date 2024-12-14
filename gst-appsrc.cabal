@@ -72,6 +72,7 @@ executable gst-appsrc
                  ,    gi-gobject
                  ,    unix
                  ,    bytestring
+                 ,    unix-time
                  ,    async
 
     -- Directories containing source files.

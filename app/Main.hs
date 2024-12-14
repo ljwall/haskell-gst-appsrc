@@ -2,9 +2,11 @@
 module Main where
 
 import Data.Word
+import Data.UnixTime
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad
+import Foreign.C.Types (CTime(..))
 import GI.Gst as Gst
 import GI.GObject as GObj
 import System.Posix.Signals
@@ -46,8 +48,8 @@ whiteness = B.replicate (4*240*360) 255
 blackness :: B.ByteString
 blackness = B.replicate (4*240*360) 0
 
-supplyBuffers :: Gst.Pipeline -> Gst.Element -> Word64 -> IO ()
-supplyBuffers pipeline appsrc n = do
+supplyBuffers :: UnixTime -> Gst.Pipeline -> Gst.Element -> Word64 -> IO ()
+supplyBuffers start pipeline appsrc n = do
   buff <- bufferNewWrapped $ greyness n
   -- buff <- bufferNewWrapped $ [whiteness, blackness] !! fromIntegral (n `mod` 2)
 
@@ -55,11 +57,12 @@ supplyBuffers pipeline appsrc n = do
   -- let t = if hasPos then pos else 0
   --
   let step_us = 33000
-      step_ns = step_us * 1000
-      t = n * step_ns
 
-  print t
-  print n
+  -- print t
+  -- print n
+  now <- getUnixTime
+  let UnixDiffTime{udtSeconds=(CTime s), udtMicroSeconds=us} = diffUnixTime now start
+      t = fromIntegral s * 1000000000 + fromIntegral us * 1000
 
   setBufferPts buff (fromIntegral t)
 
@@ -69,7 +72,7 @@ supplyBuffers pipeline appsrc n = do
   gBuff <- toGValue $ Just buff
   _ <- signalEmitv [gAppsrc, gBuff] sig 0
   threadDelay $ fromIntegral step_us
-  supplyBuffers pipeline appsrc (n + 1)
+  supplyBuffers start pipeline appsrc (n + 1)
 
 main :: IO ()
 main = do
@@ -122,5 +125,6 @@ main = do
 
   -- Get the message bus and start looping
   bus <- Gst.elementGetBus pipeline `unwrap` "No bus :-( "
+  start <- getUnixTime
   putStrLn "Waiting for eos or error"
-  concurrently_  (loop bus) $ supplyBuffers pipeline appsrc 0
+  concurrently_  (loop bus) $ supplyBuffers start pipeline appsrc 0
