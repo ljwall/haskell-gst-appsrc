@@ -81,22 +81,39 @@ main = do
   -- videotestsrc <- Gst.elementFactoryMake "videotestsrc" Nothing `unwrap` "Unable to make element"
   appsrc <- Gst.elementFactoryMake "appsrc" Nothing `unwrap` "Unable to make element"
   videoconvert <- Gst.elementFactoryMake "videoconvert" Nothing `unwrap` "Unable to make element"
-  autovideosink <- Gst.elementFactoryMake "autovideosink" Nothing `unwrap` "Unable to make element"
+  -- autovideosink <- Gst.elementFactoryMake "autovideosink" Nothing `unwrap` "Unable to make element"
+
+  x264enc <- Gst.elementFactoryMake "x264enc" Nothing `unwrap` "Unable to make element"
+  h264parse <- Gst.elementFactoryMake "h264parse" Nothing `unwrap` "Unable to make element"
+  mp4mux <- Gst.elementFactoryMake "mp4mux" Nothing `unwrap` "Unable to make element"
+  filesink <- Gst.elementFactoryMake "filesink" Nothing `unwrap` "Unable to make element"
 
   caps <- capsFromString "video/x-raw,format=RGBx,width=360,height=240,framerate=0/1" `unwrap` "Unable to make caps"
   gCaps <- toGValue $ Just caps
   GObj.objectSetProperty appsrc "caps" gCaps
   gFalse <- toGValue False
   GObj.objectSetProperty appsrc "emit-signals" gFalse
-  gTrue <- toGValue True
-  GObj.objectSetProperty appsrc "is-live" gTrue
+
+  -- gTrue <- toGValue True
+  -- GObj.objectSetProperty appsrc "is-live" gTrue
+
+  gLoc <- toGValue $ Just ("out.mp4" :: String)
+  GObj.objectSetProperty filesink "location" gLoc
 
   _ <- Gst.binAdd pipeline appsrc
   _ <- Gst.binAdd pipeline videoconvert
-  _ <- Gst.binAdd pipeline autovideosink
+  -- _ <- Gst.binAdd pipeline autovideosink
+  _ <- Gst.binAdd pipeline x264enc
+  _ <- Gst.binAdd pipeline h264parse
+  _ <- Gst.binAdd pipeline mp4mux
+  _ <- Gst.binAdd pipeline filesink
 
   _ <- Gst.elementLink appsrc videoconvert
-  _ <- Gst.elementLink videoconvert autovideosink
+  -- _ <- Gst.elementLink videoconvert autovideosink
+  _ <- Gst.elementLink videoconvert x264enc
+  _ <- Gst.elementLink x264enc h264parse
+  _ <- Gst.elementLink h264parse mp4mux
+  _ <- Gst.elementLink mp4mux filesink
 
   _ <- Gst.elementSetState  pipeline Gst.StatePlaying
 
