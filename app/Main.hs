@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Data.Int
 import Control.Monad
 import GI.Gst as Gst
-import System.Exit
+import GI.GObject as GObj
 import System.Posix.Signals
 
 -- | Loop forever for messages
@@ -17,8 +18,19 @@ loop bus = do
 
 
 -- | Send EOS to the (pipeline) element
-sendEos :: Gst.Element -> IO Bool
+sendEos ::  Gst.Pipeline -> IO Bool
 sendEos pipeline = Gst.eventNewEos >>= Gst.elementSendEvent pipeline
+
+
+unwrap :: (MonadFail m)
+       => m (Maybe a)
+       -> String
+       -> m a
+unwrap m err = do
+  val <- m
+  case val of
+    Nothing        -> fail err
+    Just something -> pure something
 
 
 main :: IO ()
@@ -26,23 +38,28 @@ main = do
   -- Initialise Gstreamer
   _ <- Gst.init Nothing
 
-  -- let pipeTxt = "videotestsrc is-live=true ! x264enc key-int-max=25 ! h264parse ! splitmuxsink location=vid%03d.mp4 max-size-time=5000000000"
-  let pipeTxt = "videotestsrc is-live=true ! videoconvert ! autovideosink"
-
   -- Create and play pipeline
-  pipeline <- Gst.parseLaunch pipeTxt
+  pipeline <- Gst.pipelineNew Nothing
+  videotestsrc <- Gst.elementFactoryMake "videotestsrc" Nothing `unwrap` "Unable to make element"
+  videoconvert <- Gst.elementFactoryMake "videoconvert" Nothing `unwrap` "Unable to make element"
+  autovideosink <- Gst.elementFactoryMake "autovideosink" Nothing `unwrap` "Unable to make element"
+
+  pattern <- toGValue (1 :: Int32)
+  GObj.objectSetProperty videotestsrc "pattern" pattern
+
+  _ <- Gst.binAdd pipeline videotestsrc
+  _ <- Gst.binAdd pipeline videoconvert
+  _ <- Gst.binAdd pipeline autovideosink
+
+  _ <- Gst.elementLink videotestsrc videoconvert
+  _ <- Gst.elementLink videoconvert autovideosink
+
   _ <- Gst.elementSetState  pipeline Gst.StatePlaying
 
   -- Install a signal handler that will send an EOS to the pipeline on sigint
   _ <- installHandler sigINT (CatchOnce . void $ sendEos pipeline) Nothing
 
   -- Get the message bus and start looping
-  maybeBus <- Gst.elementGetBus pipeline
-  case maybeBus of
-    Nothing  ->
-      do _ <- Gst.elementSetState  pipeline Gst.StateNull
-         die "No bus! :-( "
-    Just bus ->
-      do putStrLn "Waiting for eos or error"
-         loop bus
- 
+  bus <- Gst.elementGetBus pipeline `unwrap` "No bus :-( "
+  putStrLn "Waiting for eos or error"
+  loop bus
