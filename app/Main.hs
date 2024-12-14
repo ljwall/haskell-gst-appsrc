@@ -40,29 +40,18 @@ unwrap m err = do
 
 greyness :: Word64 -> B.ByteString
 greyness t =
-  let v = floor $ 255.0 * fromIntegral t / 100.0
+  let v = floor $ 255.0 * (fromIntegral t :: Double) / 100.0
   in B.replicate (4*240*360) v
-
-whiteness :: B.ByteString
-whiteness = B.replicate (4*240*360) 255
-blackness :: B.ByteString
-blackness = B.replicate (4*240*360) 0
 
 supplyBuffers :: UnixTime -> Gst.Pipeline -> Gst.Element -> Word64 -> IO ()
 supplyBuffers start pipeline appsrc n = do
   buff <- bufferNewWrapped $ greyness n
-  -- buff <- bufferNewWrapped $ [whiteness, blackness] !! fromIntegral (n `mod` 2)
 
-  -- (hasPos, pos) <- elementQueryPosition pipeline FormatTime
-  -- let t = if hasPos then pos else 0
-  --
   let step_us = 33000
 
-  -- print t
-  -- print n
   now <- getUnixTime
   let UnixDiffTime{udtSeconds=(CTime s), udtMicroSeconds=us} = diffUnixTime now start
-      t = fromIntegral s * 1000000000 + fromIntegral us * 1000
+      t = (fromIntegral s * 1000000000 + fromIntegral us * 1000) :: Int
 
   setBufferPts buff (fromIntegral t)
 
@@ -71,7 +60,7 @@ supplyBuffers start pipeline appsrc n = do
   gAppsrc <- toGValue $ Just appsrc
   gBuff <- toGValue $ Just buff
   _ <- signalEmitv [gAppsrc, gBuff] sig 0
-  threadDelay $ fromIntegral step_us
+  threadDelay step_us
   supplyBuffers start pipeline appsrc (n + 1)
 
 main :: IO ()
