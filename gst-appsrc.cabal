@@ -71,6 +71,8 @@ executable gst-appsrc
                  ,    gi-gst
                  ,    gi-gobject
                  ,    unix
+                 ,    bytestring
+                 ,    async
 
     -- Directories containing source files.
     hs-source-dirs:   app
